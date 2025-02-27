@@ -1,0 +1,29 @@
+# Ignore compiled files from MQL5
+*.ex5
+*.ex4
+*.dll
+*.exp
+*.lib
+*.pdb
+*.obj
+
+# Ignore log files
+*.log
+
+# Ignore tester files
+*.tst
+
+# Ignore backup files
+*.bak
+
+# Ignore cache files
+*.opt
+*.dat
+*.mqproj.bak
+
+# Ignore MetaEditor temporary files
+*.mq?~
+
+# OS specific files
+.DS_Store
+Thumbs.db
