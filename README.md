@@ -51,10 +51,20 @@ This template provides a solid foundation for developing Expert Advisors (EAs) o
 - Called automatically during tick processing or manually with `PartialCloseAll()`
 - Tracks positions with built-in logic to prevent multiple partial closes on same position
 
+### Breakeven Functionality
+
+- Enable with `UseBreakeven` parameter to automatically move stop-loss to breakeven
+- Two operation modes available via `BreakevenMode` input:
+  - `BE_FIXED`: Move to breakeven when profit reaches `FixedBreakevenPips` pips
+  - `BE_ATR`: Move to breakeven when profit reaches `BreakevenATRMultiplier` × ATR value
+- Configure additional profit buffer with `BreakevenBuffer` in points
+- Automatically monitors all positions and applies breakeven when conditions are met
+- Called during tick processing via built-in `MoveToBreakeven()` function
+
 ### ATR Implementation
 
 - Configurable with `ATRPeriod` and `ATRTimeframe` inputs
-- Provides volatility reference for dynamic SL/TP and partial close decisions
+- Provides volatility reference for dynamic SL/TP, partial close decisions, and breakeven levels
 - Powers volatility-adjusted position sizing when combined with risk-based lot sizing
 
 ### Trade Execution & Management
@@ -152,6 +162,7 @@ if(CustomIndicatorHandle == INVALID_HANDLE)
 - `void CloseAllPositions()` - Closes all positions opened by this EA
 - `bool PartialClose(ulong ticket, double percentage)` - Partially closes a position with specified ticket
 - `void PartialCloseAll()` - Partially closes all positions based on ATR conditions
+- `void MoveToBreakeven()` - Moves stop-loss to breakeven when position reaches profit target using either fixed pips or ATR-based calculations
 
 ### Trade Configuration
 
@@ -178,8 +189,7 @@ if(CustomIndicatorHandle == INVALID_HANDLE)
 - `bool Prechecks()` - Validates input parameters during initialization
 - `double OnTester()` - Custom optimization criterion for backtests
 
-Collecting workspace information
-
 ## Disclaimer
 
-Use this template at your own risk. Always test thoroughly in a demo environment. Past performance is not indicative of future results.
+Use this template at your own risk. Always test thoroughly in a demo
+environment. Past performance is not indicative of future results.
