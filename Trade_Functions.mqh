@@ -311,4 +311,100 @@ void PartialCloseAll()
            }
      }
   }
+
+// Move stop loss to breakeven when position is in profit
+void MoveToBreakeven()
+  {
+   if(!UseBreakeven) // Skip if breakeven feature is disabled
+      return;
+
+   int total = PositionsTotal();
+   
+   // Get point to pip conversion factor
+   double pipValue = SymbolInfoDouble(Symbol(), SYMBOL_POINT) * 10;
+   
+   // Loop through all positions
+   for(int i = 0; i < total; i++)
+     {
+      // If the position cannot be selected, log an error
+      if(PositionGetSymbol(i) == "")
+        {
+         PrintFormat(__FUNCTION__, ": ERROR - Unable to select the position - %s - %d.", GetLastErrorText(GetLastError()), GetLastError());
+         continue;
+        }
+      
+      // Skip positions that are not for the current symbol
+      if(PositionGetString(POSITION_SYMBOL) != Symbol())
+         continue;
+         
+      // Skip positions with a different Magic number
+      if((MagicNumber != 0) && (PositionGetInteger(POSITION_MAGIC) != MagicNumber))
+         continue;
+      
+      ulong ticket = PositionGetInteger(POSITION_TICKET);
+      double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+      double currentSL = PositionGetDouble(POSITION_SL);
+      double breakeven = openPrice; // Basic breakeven level
+      bool moveToBreakeven = false;
+      
+      // If buffer is defined, add it to ensure a small profit (convert pips to points)
+      if(BreakevenBuffer > 0)
+        {
+         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+            breakeven += BreakevenBuffer * pipValue;
+         else
+            breakeven -= BreakevenBuffer * pipValue;
+        }
+      
+      // Check if we're in enough profit to move to breakeven based on the selected mode
+      if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+        {
+         if(BreakevenMode == BE_ATR)
+           {
+            // ATR-based breakeven for BUY positions
+            if(SymbolInfoDouble(Symbol(), SYMBOL_BID) > openPrice + ATR_previous * BreakevenATRMultiplier)
+               moveToBreakeven = true;
+           }
+         else
+           {
+            // Fixed pips breakeven for BUY positions - convert pips to points
+            if(SymbolInfoDouble(Symbol(), SYMBOL_BID) > openPrice + FixedBreakevenPips * pipValue)
+               moveToBreakeven = true;
+           }
+         
+         // Apply breakeven if conditions are met
+         if(moveToBreakeven && (currentSL < breakeven || currentSL == 0))
+           {
+            if(!Trade.PositionModify(ticket, breakeven, PositionGetDouble(POSITION_TP)))
+               PrintFormat("ERROR - Unable to modify position to breakeven #%d: %s - %d", ticket, Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
+            else
+               PrintFormat("Moved position #%d to breakeven at %f", ticket, breakeven);
+           }
+        }
+      else if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+        {
+         if(BreakevenMode == BE_ATR)
+           {
+            // ATR-based breakeven for SELL positions
+            if(SymbolInfoDouble(Symbol(), SYMBOL_ASK) < openPrice - ATR_previous * BreakevenATRMultiplier)
+               moveToBreakeven = true;
+           }
+         else
+           {
+            // Fixed pips breakeven for SELL positions - convert pips to points
+            if(SymbolInfoDouble(Symbol(), SYMBOL_ASK) < openPrice - FixedBreakevenPips * pipValue)
+               moveToBreakeven = true;
+           }
+         
+         // Apply breakeven if conditions are met
+         if(moveToBreakeven && (currentSL > breakeven || currentSL == 0))
+           {
+            if(!Trade.PositionModify(ticket, breakeven, PositionGetDouble(POSITION_TP)))
+               PrintFormat("ERROR - Unable to modify position to breakeven #%d: %s - %d", ticket, Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
+            else
+               PrintFormat("Moved position #%d to breakeven at %f", ticket, breakeven);
+           }
+        }
+     }
+  }
 //+------------------------------------------------------------------+
