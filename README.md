@@ -32,7 +32,7 @@ This template provides a solid foundation for developing Expert Advisors (EAs) o
   - `FIXED_LOT`: Trade with consistent position size (`FixedLotSize`)
   - `RISK_BASED`: Dynamic sizing based on risk percentage (`RiskPercent`)
 - Set `AccountBalanceType` to calculate risk from balance, equity, or free margin
-- Control exposure with `MaxPositions` to limit concurrent trades
+- Control exposure with `MaxPositions` (per symbol) and `MaxTotalPositions` (across all symbols)
 - Implement `MaximumLotSize` and `MinimumLotSize` as safety boundaries
 - Usage: `LotSize()` function automatically calculates optimal position size
 
@@ -60,6 +60,23 @@ This template provides a solid foundation for developing Expert Advisors (EAs) o
 - Configure additional profit buffer with `BreakevenBuffer` in points
 - Automatically monitors all positions and applies breakeven when conditions are met
 - Called during tick processing via built-in `MoveToBreakeven()` function
+
+### Multi-Symbol Trading
+
+- Trade multiple instruments with a single instance of the EA using the `Symbols` parameter
+- Three options for configuring symbols:
+  - "current": Trade only the current chart symbol
+  - A single symbol name: e.g., "EURUSD"
+  - A comma-separated list: e.g., "EURUSD,GBPUSD,USDJPY"
+- Control position limits with:
+  - `MaxPositions`: Maximum positions per symbol
+  - `MaxTotalPositions`: Maximum total positions across all symbols
+- Each symbol maintains its own:
+  - ATR calculation for volatility-based decisions
+  - Signal processing
+  - Position management
+- Independent processing intervals prevent excessive CPU usage
+- Automatic market symbol validation during initialization
 
 ### ATR Implementation
 
@@ -154,15 +171,16 @@ if(CustomIndicatorHandle == INVALID_HANDLE)
 
 ### Position Management Functions
 
-- `int CountPositions()` - Counts open positions for current symbol with specified magic number
-- `bool OpenBuy()` - Opens a buy position with calculated SL/TP based on risk settings
-- `bool OpenSell()` - Opens a sell position with calculated SL/TP based on risk settings
-- `void CloseAllBuy()` - Closes all buy positions for current symbol
-- `void CloseAllSell()` - Closes all sell positions for current symbol
-- `void CloseAllPositions()` - Closes all positions opened by this EA
-- `bool PartialClose(ulong ticket, double percentage)` - Partially closes a position with specified ticket
-- `void PartialCloseAll()` - Partially closes all positions based on ATR conditions
-- `void MoveToBreakeven()` - Moves stop-loss to breakeven when position reaches profit target using either fixed pips or ATR-based calculations
+- `int CountPositions(string symbol = NULL)` - Counts open positions for the specified symbol (or current if NULL) with the EA's magic number.
+- `bool OpenBuy(string symbol = NULL)` - Opens a buy position on the specified symbol (or current if NULL) with calculated SL/TP based on risk settings.
+- `bool OpenSell(string symbol = NULL)` - Opens a sell position on the specified symbol (or current if NULL) with calculated SL/TP based on risk settings.
+- `void CloseAllBuy(string symbol = NULL)` - Closes all buy positions for the specified symbol (or current if NULL).
+- `void CloseAllSell(string symbol = NULL)` - Closes all sell positions for the specified symbol (or current if NULL).
+- `void CloseAllPositions(string symbol = NULL)` - Closes all positions opened by this EA for the specified symbol (or all symbols if NULL).
+- `bool PartialClose(ulong ticket, double percentage)` - Partially closes a position with the specified ticket.
+- `void PartialCloseAll(string symbol = NULL)` - Partially closes all eligible positions for the specified symbol (or current if NULL) based on ATR conditions.
+- `void MoveToBreakeven(string symbol = NULL)` - Moves stop-loss to breakeven for eligible positions on the specified symbol (or current if NULL) when profit target is reached.
+- `int CountTotalPositions()` - Counts total open positions across all symbols managed by the EA.
 
 ### Trade Configuration
 
@@ -170,24 +188,26 @@ if(CustomIndicatorHandle == INVALID_HANDLE)
 
 ### Signal Management
 
-- `bool InitializeHandles()` - Sets up indicator handles including ATR
-- `bool GetIndicatorsData()` - Retrieves indicator data with retry logic
-- `void CheckEntrySignal()` - Framework for implementing entry signal logic
-- `void CheckExitSignal()` - Framework for implementing exit signal logic
+- `bool InitializeHandles()` - Sets up indicator handles (including ATR) for all configured symbols.
+- `bool GetIndicatorsData(string symbol)` - Retrieves indicator data (including ATR) for the specified symbol with retry logic.
+- `void CheckEntrySignal(string symbol)` - Framework for implementing entry signal logic for the specified symbol.
+- `void CheckExitSignal(string symbol)` - Framework for implementing exit signal logic for the specified symbol.
 
 ### Risk Management
 
-- `double StopLoss(ENUM_ORDER_TYPE order_type, double open_price)` - Calculates stop-loss price based on settings
-- `double TakeProfit(ENUM_ORDER_TYPE order_type, double open_price)` - Calculates take-profit price based on settings
-- `double LotSize(double stop_loss, double open_price)` - Calculates position size based on risk parameters
-- `double DynamicStopLossPrice(ENUM_ORDER_TYPE type, double open_price)` - Calculates ATR-based dynamic stop-loss
-- `double DynamicTakeProfitPrice(ENUM_ORDER_TYPE type, double open_price)` - Calculates ATR-based dynamic take-profit
+- `double StopLoss(ENUM_ORDER_TYPE order_type, double open_price, string symbol)` - Calculates stop-loss price for the specified symbol based on settings.
+- `double TakeProfit(ENUM_ORDER_TYPE order_type, double open_price, string symbol)` - Calculates take-profit price for the specified symbol based on settings.
+- `double LotSize(double stop_loss, double open_price, string symbol)` - Calculates position size for the specified symbol based on risk parameters.
+- `double DynamicStopLossPrice(ENUM_ORDER_TYPE type, double open_price, string symbol)` - Calculates ATR-based dynamic stop-loss for the specified symbol.
+- `double DynamicTakeProfitPrice(ENUM_ORDER_TYPE type, double open_price, string symbol)` - Calculates ATR-based dynamic take-profit for the specified symbol.
+- `double GetSymbolATR(string symbol)` - Helper function to retrieve the ATR value for a specific symbol.
 
 ### Processing Functions
 
-- `void ProcessTick()` - Main tick processing function
-- `bool Prechecks()` - Validates input parameters during initialization
-- `double OnTester()` - Custom optimization criterion for backtests
+- `void ProcessTick()` - Main tick processing function, iterates through all configured symbols.
+- `bool Prechecks()` - Validates input parameters during initialization, including the `Symbols` list.
+- `bool InitializeSymbols()` - Parses the `Symbols` input string, validates symbols, and initializes the `symbolsData` array.
+- `double OnTester()` - Custom optimization criterion for backtests.
 
 ## Disclaimer
 
