@@ -4,9 +4,13 @@
 //|                                    Copyright © 2024, Amin Zibayi |
 //+------------------------------------------------------------------+
 
-// Count all open positions for the current symbol.
-int CountPositions()
+// Count all open positions for a specific symbol
+int CountPositions(string symbol = NULL)
   {
+   // Use current symbol if no symbol provided
+   if(symbol == NULL)
+      symbol = Symbol();
+      
    int count = 0;
    int TotalPositions = PositionsTotal();
    for(int i = 0; i < TotalPositions; i++)
@@ -19,7 +23,7 @@ int CountPositions()
       else
         {
          // Skip positions in other symbols.
-         if(Instrument != Symbol())
+         if(Instrument != symbol)
             continue;
          // Skip counting positions with a different Magic number if the EA has non-zero Magic number set.
          if((MagicNumber != 0) && (PositionGetInteger(POSITION_MAGIC) != MagicNumber))
@@ -33,43 +37,57 @@ int CountPositions()
 // Set the basic parameters of the Trade object.
 void SetTradeObject()
   {
-// All future trade operations will take into account these parameters - Magic number and deviation/slippage.
+   // All future trade operations will take into account these parameters - Magic number and deviation/slippage.
    Trade.SetExpertMagicNumber(MagicNumber);
    Trade.SetDeviationInPoints(Slippage);
   }
 
 
-// Open a position with a buy order.
-bool OpenBuy()
+// Open a position with a buy order for a specific symbol
+bool OpenBuy(string symbol = NULL)
   {
-   double Ask = SymbolInfoDouble(Symbol(), SYMBOL_ASK);
-   double Bid = SymbolInfoDouble(Symbol(), SYMBOL_BID);
+   // Use current symbol if no symbol provided
+   if(symbol == NULL)
+      symbol = Symbol();
+      
+   double Ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   double Bid = SymbolInfoDouble(symbol, SYMBOL_BID);
    double OpenPrice = Ask; // Buy at Ask.
-   double StopLossPrice = StopLoss(ORDER_TYPE_BUY, OpenPrice); // Calculate SL based on direction, price, and SL rules.
-   double TakeProfitPrice = TakeProfit(ORDER_TYPE_BUY, OpenPrice); // Calculate TP based on direction, price, and TP rules.
-   double Size = LotSize(StopLossPrice, OpenPrice); // Calculate position size based on the SL, price, and the given rules.
-// Use the standard Trade object to open the position with calculated parameters.
-   if(!Trade.Buy(Size, Symbol(), OpenPrice, StopLossPrice, TakeProfitPrice))
+   
+   // Calculate stop loss and take profit using symbol-specific data from globals
+   double StopLossPrice = StopLoss(ORDER_TYPE_BUY, OpenPrice, symbol);
+   double TakeProfitPrice = TakeProfit(ORDER_TYPE_BUY, OpenPrice, symbol);
+   double Size = LotSize(StopLossPrice, OpenPrice, symbol);
+
+   // Use the standard Trade object to open the position with calculated parameters.
+   if(!Trade.Buy(Size, symbol, OpenPrice, StopLossPrice, TakeProfitPrice, OrderNote))
      {
-      PrintFormat("Unable to open BUY: %s - %d", Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
+      PrintFormat("Unable to open BUY on %s: %s - %d", symbol, Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
       return false;
      }
    return true;
   }
 
-// Open a position with a sell order.
-bool OpenSell()
+// Open a position with a sell order for a specific symbol
+bool OpenSell(string symbol = NULL)
   {
-   double Ask = SymbolInfoDouble(Symbol(), SYMBOL_ASK);
-   double Bid = SymbolInfoDouble(Symbol(), SYMBOL_BID);
+   // Use current symbol if no symbol provided
+   if(symbol == NULL)
+      symbol = Symbol();
+      
+   double Ask = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   double Bid = SymbolInfoDouble(symbol, SYMBOL_BID);
    double OpenPrice = Bid; // Sell at Bid.
-   double StopLossPrice = StopLoss(ORDER_TYPE_SELL, OpenPrice); // Calculate SL based on direction, price, and SL rules.
-   double TakeProfitPrice = TakeProfit(ORDER_TYPE_SELL, OpenPrice); // Calculate TP based on direction, price, and TP rules.
-   double Size = LotSize(StopLossPrice, OpenPrice); // Calculate position size based on the SL, price, and the given rules.
-// Use the standard Trade object to open the position with calculated parameters.
-   if(!Trade.Sell(Size, Symbol(), OpenPrice, StopLossPrice, TakeProfitPrice))
+   
+   // Calculate stop loss and take profit using symbol-specific data from globals
+   double StopLossPrice = StopLoss(ORDER_TYPE_SELL, OpenPrice, symbol);
+   double TakeProfitPrice = TakeProfit(ORDER_TYPE_SELL, OpenPrice, symbol);
+   double Size = LotSize(StopLossPrice, OpenPrice, symbol);
+
+   // Use the standard Trade object to open the position with calculated parameters.
+   if(!Trade.Sell(Size, symbol, OpenPrice, StopLossPrice, TakeProfitPrice, OrderNote))
      {
-      PrintFormat("Unable to open SELL: %s - %d", Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
+      PrintFormat("Unable to open SELL on %s: %s - %d", symbol, Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
       return false;
      }
    return true;
@@ -77,8 +95,7 @@ bool OpenSell()
 
 
 // Close the specified position completely.
-//!! Unused. Can be uncommented and used to close specific positions.
-/* bool ClosePosition(ulong ticket)
+bool ClosePosition(ulong ticket)
 {
     if (!Trade.PositionClose(ticket))
     {
@@ -86,17 +103,21 @@ bool OpenSell()
         return false;
     }
     return true;
-}*/
+}
 
 //+------------------------------------------------------------------+
-//|                                                                  |
+//| Close all sell positions for a specific symbol                   |
 //+------------------------------------------------------------------+
-void CloseAllSell()
+void CloseAllSell(string symbol = NULL)
   {
+   // Use current symbol if no symbol provided
+   if(symbol == NULL)
+      symbol = Symbol();
+      
    int total = PositionsTotal();
 
-// Start a loop to scan all the positions.
-// The loop starts from the last, otherwise it could skip positions.
+   // Start a loop to scan all the positions.
+   // The loop starts from the last, otherwise it could skip positions.
    for(int i = total - 1; i >= 0; i--)
      {
       // If the position cannot be selected log an error.
@@ -105,38 +126,39 @@ void CloseAllSell()
          PrintFormat(__FUNCTION__, ": ERROR - Unable to select the position - %s - %d.", GetLastErrorText(GetLastError()), GetLastError());
          continue;
         }
-      if(PositionGetString(POSITION_SYMBOL) != Symbol())
-         continue; // Only close current symbol trades.
+      if(PositionGetString(POSITION_SYMBOL) != symbol)
+         continue; // Only close specified symbol trades.
       if(PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
          continue; // Only close Sell positions.
       if(PositionGetInteger(POSITION_MAGIC) != MagicNumber)
          continue; // Only close own positions.
 
-      for(int try
-             = 0; try
-                < 10; try
-                   ++)
-                 {
-                  bool result = Trade.PositionClose(PositionGetInteger(POSITION_TICKET));
-                  if(!result)
-                    {
-                     PrintFormat(__FUNCTION__, ": ERROR - Unable to close position: %s - %d", Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
-                    }
-                  else
-                     break;
-                 }
+      for(int try = 0; try < 10; try++)
+        {
+         bool result = Trade.PositionClose(PositionGetInteger(POSITION_TICKET));
+         if(!result)
+           {
+            PrintFormat(__FUNCTION__, ": ERROR - Unable to close position: %s - %d", Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
+           }
+         else
+            break;
+        }
      }
   }
 
 //+------------------------------------------------------------------+
-//|                                                                  |
+//| Close all buy positions for a specific symbol                    |
 //+------------------------------------------------------------------+
-void CloseAllBuy()
+void CloseAllBuy(string symbol = NULL)
   {
+   // Use current symbol if no symbol provided
+   if(symbol == NULL)
+      symbol = Symbol();
+      
    int total = PositionsTotal();
 
-// Start a loop to scan all the positions.
-// The loop starts from the last, otherwise it could skip positions.
+   // Start a loop to scan all the positions.
+   // The loop starts from the last, otherwise it could skip positions.
    for(int i = total - 1; i >= 0; i--)
      {
       // If the position cannot be selected log an error.
@@ -145,37 +167,34 @@ void CloseAllBuy()
          PrintFormat(__FUNCTION__, ": ERROR - Unable to select the position - %s - %d.", GetLastErrorText(GetLastError()), GetLastError());
          continue;
         }
-      if(PositionGetString(POSITION_SYMBOL) != Symbol())
-         continue; // Only close current symbol trades.
+      if(PositionGetString(POSITION_SYMBOL) != symbol)
+         continue; // Only close specified symbol trades.
       if(PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
          continue; // Only close Buy positions.
       if(PositionGetInteger(POSITION_MAGIC) != MagicNumber)
          continue; // Only close own positions.
 
-      for(int try
-             = 0; try
-                < 10; try
-                   ++)
-                 {
-                  bool result = Trade.PositionClose(PositionGetInteger(POSITION_TICKET));
-                  if(!result)
-                    {
-                     PrintFormat(__FUNCTION__, ": ERROR - Unable to close position: %s - %d", Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
-                    }
-                  else
-                     break;
-                 }
+      for(int try = 0; try < 10; try++)
+        {
+         bool result = Trade.PositionClose(PositionGetInteger(POSITION_TICKET));
+         if(!result)
+           {
+            PrintFormat(__FUNCTION__, ": ERROR - Unable to close position: %s - %d", Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
+           }
+         else
+            break;
+        }
      }
   }
 
 
-// Close all positions opened by this EA.
-void CloseAllPositions()
+// Close all positions opened by this EA for a specific symbol or all symbols
+void CloseAllPositions(string symbol = NULL)
   {
    int total = PositionsTotal();
 
-// Start a loop to scan all the positions.
-// The loop starts from the last, otherwise it could skip positions.
+   // Start a loop to scan all the positions.
+   // The loop starts from the last, otherwise it could skip positions.
    for(int i = total - 1; i >= 0; i--)
      {
       // If the position cannot be selected log an error.
@@ -184,24 +203,24 @@ void CloseAllPositions()
          PrintFormat(__FUNCTION__, ": ERROR - Unable to select the position - %s - %d.", GetLastErrorText(GetLastError()), GetLastError());
          continue;
         }
-      if(PositionGetString(POSITION_SYMBOL) != Symbol())
-         continue; // Only close current symbol trades.
+        
+      // If symbol is provided, only close positions for that symbol
+      if(symbol != NULL && PositionGetString(POSITION_SYMBOL) != symbol)
+         continue;
+         
       if(PositionGetInteger(POSITION_MAGIC) != MagicNumber)
          continue; // Only close own positions.
 
-      for(int try
-             = 0; try
-                < 10; try
-                   ++)
-                 {
-                  bool result = Trade.PositionClose(PositionGetInteger(POSITION_TICKET));
-                  if(!result)
-                    {
-                     PrintFormat(__FUNCTION__, ": ERROR - Unable to close position: %s - %d", Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
-                    }
-                  else
-                     break;
-                 }
+      for(int try = 0; try < 10; try++)
+        {
+         bool result = Trade.PositionClose(PositionGetInteger(POSITION_TICKET));
+         if(!result)
+           {
+            PrintFormat(__FUNCTION__, ": ERROR - Unable to close position: %s - %d", Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
+           }
+         else
+            break;
+        }
      }
   }
 
@@ -214,10 +233,11 @@ bool PartialClose(ulong ticket, double percentage)
       return false;
      }
    double OriginalSize = PositionGetDouble(POSITION_VOLUME);
+   string symbol = PositionGetString(POSITION_SYMBOL);
    double Size = OriginalSize * percentage / 100;
-   double LotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
-   double MaxLot = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
-   double MinLot = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
+   double LotStep = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
+   double MaxLot = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
+   double MinLot = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
    Size = MathFloor(Size / LotStep) * LotStep;
    if(Size < MinLot)
       return false;
@@ -230,13 +250,31 @@ bool PartialClose(ulong ticket, double percentage)
   }
 
 
-// Partially close all positions opened by this EA.
-void PartialCloseAll()
+// Partially close all positions opened by this EA for a specific symbol
+void PartialCloseAll(string symbol = NULL)
   {
+   // Use current symbol if no symbol provided
+   if(symbol == NULL)
+      symbol = Symbol();
+      
+   // Find the symbol index for ATR values
+   int symbolIdx = -1;
+   for(int i = 0; i < symbolsCount; i++)
+     {
+      if(symbolsData[i].name == symbol)
+        {
+         symbolIdx = i;
+         break;
+        }
+     }
+   
+   // Get the symbol's ATR value
+   double atr_value = (symbolIdx >= 0) ? symbolsData[symbolIdx].ATR_previous : 0;
+      
    int total = PositionsTotal();
 
-// Start a loop to scan all the positions.
-// The loop starts from the last, otherwise it could skip positions.
+   // Start a loop to scan all the positions.
+   // The loop starts from the last, otherwise it could skip positions.
    for(int i = total - 1; i >= 0; i--)
      {
       // If the position cannot be selected log an error.
@@ -245,8 +283,8 @@ void PartialCloseAll()
          Print(__FUNCTION__, ": ERROR - Unable to select the position - ", GetLastError());
          continue;
         }
-      if(PositionGetString(POSITION_SYMBOL) != Symbol())
-         continue; // Only close current symbol trades.
+      if(PositionGetString(POSITION_SYMBOL) != symbol)
+         continue; // Only close specified symbol trades.
       if(PositionGetInteger(POSITION_MAGIC) != MagicNumber)
          continue; // Only close own positions.
 
@@ -279,7 +317,7 @@ void PartialCloseAll()
               }
            }
          // Condition for partial close of a long position.
-         if((need_partial_close) && (SymbolInfoDouble(Symbol(), SYMBOL_BID) - PositionGetDouble(POSITION_PRICE_OPEN) > ATR_previous * ATRMultiplierPC))
+         if((need_partial_close) && (SymbolInfoDouble(symbol, SYMBOL_BID) - PositionGetDouble(POSITION_PRICE_OPEN) > atr_value * ATRMultiplierPC))
            {
             PartialClose(position_ticket, PartialClosePerc);
            }
@@ -303,7 +341,7 @@ void PartialCloseAll()
                  }
               }
             // Condition for partial close of a short position.
-            if((need_partial_close) && (PositionGetDouble(POSITION_PRICE_OPEN) - SymbolInfoDouble(Symbol(), SYMBOL_ASK) > ATR_previous * ATRMultiplierPC))
+            if((need_partial_close) && (PositionGetDouble(POSITION_PRICE_OPEN) - SymbolInfoDouble(symbol, SYMBOL_ASK) > atr_value * ATRMultiplierPC))
               {
                PartialClose(position_ticket, PartialClosePerc);
               }
@@ -312,16 +350,34 @@ void PartialCloseAll()
      }
   }
 
-// Move stop loss to breakeven when position is in profit
-void MoveToBreakeven()
+// Move stop loss to breakeven when position is in profit for a specific symbol
+void MoveToBreakeven(string symbol = NULL)
   {
+   // Use current symbol if no symbol provided
+   if(symbol == NULL)
+      symbol = Symbol();
+      
    if(!UseBreakeven) // Skip if breakeven feature is disabled
       return;
+      
+   // Find the symbol index for ATR values
+   int symbolIdx = -1;
+   for(int i = 0; i < symbolsCount; i++)
+     {
+      if(symbolsData[i].name == symbol)
+        {
+         symbolIdx = i;
+         break;
+        }
+     }
+   
+   // Get the symbol's ATR value
+   double atr_value = (symbolIdx >= 0) ? symbolsData[symbolIdx].ATR_previous : 0;
 
    int total = PositionsTotal();
    
    // Get point to pip conversion factor
-   double pipValue = SymbolInfoDouble(Symbol(), SYMBOL_POINT) * 10;
+   double pipValue = SymbolInfoDouble(symbol, SYMBOL_POINT) * 10;
    
    // Loop through all positions
    for(int i = 0; i < total; i++)
@@ -333,8 +389,8 @@ void MoveToBreakeven()
          continue;
         }
       
-      // Skip positions that are not for the current symbol
-      if(PositionGetString(POSITION_SYMBOL) != Symbol())
+      // Skip positions that are not for the specified symbol
+      if(PositionGetString(POSITION_SYMBOL) != symbol)
          continue;
          
       // Skip positions with a different Magic number
@@ -362,13 +418,13 @@ void MoveToBreakeven()
          if(BreakevenMode == BE_ATR)
            {
             // ATR-based breakeven for BUY positions
-            if(SymbolInfoDouble(Symbol(), SYMBOL_BID) > openPrice + ATR_previous * BreakevenATRMultiplier)
+            if(SymbolInfoDouble(symbol, SYMBOL_BID) > openPrice + atr_value * BreakevenATRMultiplier)
                moveToBreakeven = true;
            }
          else
            {
             // Fixed pips breakeven for BUY positions - convert pips to points
-            if(SymbolInfoDouble(Symbol(), SYMBOL_BID) > openPrice + FixedBreakevenPips * pipValue)
+            if(SymbolInfoDouble(symbol, SYMBOL_BID) > openPrice + FixedBreakevenPips * pipValue)
                moveToBreakeven = true;
            }
          
@@ -378,7 +434,7 @@ void MoveToBreakeven()
             if(!Trade.PositionModify(ticket, breakeven, PositionGetDouble(POSITION_TP)))
                PrintFormat("ERROR - Unable to modify position to breakeven #%d: %s - %d", ticket, Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
             else
-               PrintFormat("Moved position #%d to breakeven at %f", ticket, breakeven);
+               PrintFormat("Moved position #%d to breakeven at %f on %s", ticket, breakeven, symbol);
            }
         }
       else if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
@@ -386,13 +442,13 @@ void MoveToBreakeven()
          if(BreakevenMode == BE_ATR)
            {
             // ATR-based breakeven for SELL positions
-            if(SymbolInfoDouble(Symbol(), SYMBOL_ASK) < openPrice - ATR_previous * BreakevenATRMultiplier)
+            if(SymbolInfoDouble(symbol, SYMBOL_ASK) < openPrice - atr_value * BreakevenATRMultiplier)
                moveToBreakeven = true;
            }
          else
            {
             // Fixed pips breakeven for SELL positions - convert pips to points
-            if(SymbolInfoDouble(Symbol(), SYMBOL_ASK) < openPrice - FixedBreakevenPips * pipValue)
+            if(SymbolInfoDouble(symbol, SYMBOL_ASK) < openPrice - FixedBreakevenPips * pipValue)
                moveToBreakeven = true;
            }
          
@@ -402,9 +458,10 @@ void MoveToBreakeven()
             if(!Trade.PositionModify(ticket, breakeven, PositionGetDouble(POSITION_TP)))
                PrintFormat("ERROR - Unable to modify position to breakeven #%d: %s - %d", ticket, Trade.ResultRetcodeDescription(), Trade.ResultRetcode());
             else
-               PrintFormat("Moved position #%d to breakeven at %f", ticket, breakeven);
+               PrintFormat("Moved position #%d to breakeven at %f on %s", ticket, breakeven, symbol);
            }
         }
      }
   }
 //+------------------------------------------------------------------+
+
