@@ -209,6 +209,10 @@ if(CustomIndicatorHandle == INVALID_HANDLE)
 - `bool InitializeSymbols()` - Parses the `Symbols` input string, validates symbols, and initializes the `symbolsData` array.
 - `double OnTester()` - Custom optimization criterion for backtests.
 
+## Roadmap
+
+- [ ] Multi-Timeframe Support
+
 ## Disclaimer
 
 Use this template at your own risk. Always test thoroughly in a demo
