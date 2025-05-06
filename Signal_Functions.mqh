@@ -204,4 +204,138 @@ void CheckExitSignal(string symbol)
    if(SignalExitShort)
       CloseAllSell(symbol);
   }
+  
+  // Partially close all positions opened by this EA for a specific symbol
+void CheckPartialClose(string symbol = NULL)
+  {
+   // Use current symbol if no symbol provided
+   if(symbol == NULL)
+      symbol = Symbol();
+      
+   // Find the symbol index for ATR values
+   int symbolIdx = -1;
+   for(int i = 0; i < symbolsCount; i++)
+     {
+      if(symbolsData[i].name == symbol)
+        {
+         symbolIdx = i;
+         break;
+        }
+     }
+   
+   // Get the symbol's ATR value
+   double atr_value = (symbolIdx >= 0) ? symbolsData[symbolIdx].ATR_previous : 0;
+   
+   // Get pip value for this symbol
+   double pipValue = SymbolInfoDouble(symbol, SYMBOL_POINT) * 10;
+      
+   int total = PositionsTotal();
+
+   // Start a loop to scan all the positions.
+   // The loop starts from the last, otherwise it could skip positions.
+   for(int i = total - 1; i >= 0; i--)
+     {
+      // If the position cannot be selected log an error.
+      if(PositionGetSymbol(i) == "")
+        {
+         Print(__FUNCTION__, ": ERROR - Unable to select the position - ", GetLastError());
+         continue;
+        }
+      if(PositionGetString(POSITION_SYMBOL) != symbol)
+         continue; // Only close specified symbol trades.
+      if(PositionGetInteger(POSITION_MAGIC) != MagicNumber)
+         continue; // Only close own positions.
+
+      int position_ticket = (int)PositionGetInteger(POSITION_TICKET);
+
+      // Retrieve the history of deals and orders for that position to check if it hasn't been already partially closed.
+      if(!HistorySelectByPosition(PositionGetInteger(POSITION_IDENTIFIER)))
+        {
+         PrintFormat("ERROR - Unable to get position history for %d - %s - %d", position_ticket, GetLastErrorText(GetLastError()), GetLastError());
+         continue;
+        }
+
+      bool need_partial_close = true;
+      bool condition_met = false;
+
+      // Process partial close for a long position.
+      if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+        {
+         for(int j = HistoryDealsTotal() - 1; j >= 0; j--)
+           {
+            long deal_ticket = (int)HistoryDealGetTicket(j);
+            if(!deal_ticket)
+              {
+               PrintFormat("Unable to get deal for %d - %s - %d", position_ticket, GetLastErrorText(GetLastError()), GetLastError());
+               break;
+              }
+            if(HistoryDealGetInteger(deal_ticket, DEAL_TYPE) == DEAL_TYPE_SELL)  // Looks like this long position has already been partially closed at least once.
+              {
+               need_partial_close = false;
+               break; // No need to partially close this position.
+              }
+           }
+           
+         // Check partial close condition based on selected mode
+         if(PartialCloseMode == PC_ATR)
+         {
+            // ATR-based partial close for long positions
+            if(SymbolInfoDouble(symbol, SYMBOL_BID) - PositionGetDouble(POSITION_PRICE_OPEN) > atr_value * ATRMultiplierPC)
+               condition_met = true;
+         }
+         else
+         {
+            // Fixed pips partial close for long positions
+            if(SymbolInfoDouble(symbol, SYMBOL_BID) - PositionGetDouble(POSITION_PRICE_OPEN) > FixedPipsPC * pipValue)
+               condition_met = true;
+         }
+         
+         // Apply partial close if conditions are met
+         if(need_partial_close && condition_met)
+           {
+            if(PartialClose(position_ticket, PartialClosePerc))
+               PrintFormat("Partially closed BUY position #%d on %s by %g%%", position_ticket, symbol, PartialClosePerc);
+           }
+        }
+      // Process partial close for a short position.
+      else if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+        {
+         for(int j = HistoryDealsTotal() - 1; j >= 0; j--)
+           {
+            long deal_ticket = (int)HistoryDealGetTicket(j);
+            if(!deal_ticket)
+              {
+               PrintFormat("Unable to get deal for %d - %s - %d", position_ticket, GetLastErrorText(GetLastError()), GetLastError());
+               return;
+              }
+            if(HistoryDealGetInteger(deal_ticket, DEAL_TYPE) == DEAL_TYPE_BUY)  // Looks like this short position has already been partially closed at least once.
+              {
+               need_partial_close = false;
+               break; // No need to partially close this position.
+              }
+           }
+           
+         // Check partial close condition based on selected mode
+         if(PartialCloseMode == PC_ATR)
+         {
+            // ATR-based partial close for short positions
+            if(PositionGetDouble(POSITION_PRICE_OPEN) - SymbolInfoDouble(symbol, SYMBOL_ASK) > atr_value * ATRMultiplierPC)
+               condition_met = true;
+         }
+         else
+         {
+            // Fixed pips partial close for short positions
+            if(PositionGetDouble(POSITION_PRICE_OPEN) - SymbolInfoDouble(symbol, SYMBOL_ASK) > FixedPipsPC * pipValue)
+               condition_met = true;
+         }
+           
+         // Apply partial close if conditions are met
+         if(need_partial_close && condition_met)
+           {
+            if(PartialClose(position_ticket, PartialClosePerc))
+               PrintFormat("Partially closed SELL position #%d on %s by %g%%", position_ticket, symbol, PartialClosePerc);
+           }
+        }
+     }
+  }
 //+------------------------------------------------------------------+

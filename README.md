@@ -46,9 +46,12 @@ This template provides a solid foundation for developing Expert Advisors (EAs) o
 
 ### Partial Close Functionality
 
-- Enable with `UsePartialClose` and set trigger level with `PartialCloseATRMultiplier`
-- Configure percentage to close via `PartialClosePercent` (1-99%)
-- Called automatically during tick processing or manually with `PartialCloseAll()`
+- Enable with `UsePartialClose` parameter
+- Two operation modes available via `PartialCloseMode` input:
+  - `PC_FIXED`: Trigger partial close when profit reaches `FixedPipsPC` pips
+  - `PC_ATR`: Trigger partial close when profit reaches `ATRMultiplierPC` × ATR value
+- Configure percentage to close via `PartialClosePerc` (1-99%)
+- Called automatically during tick processing or manually with `CheckPartialClose()`
 - Tracks positions with built-in logic to prevent multiple partial closes on same position
 
 ### Breakeven Functionality
@@ -178,7 +181,6 @@ if(CustomIndicatorHandle == INVALID_HANDLE)
 - `void CloseAllSell(string symbol = NULL)` - Closes all sell positions for the specified symbol (or current if NULL).
 - `void CloseAllPositions(string symbol = NULL)` - Closes all positions opened by this EA for the specified symbol (or all symbols if NULL).
 - `bool PartialClose(ulong ticket, double percentage)` - Partially closes a position with the specified ticket.
-- `void PartialCloseAll(string symbol = NULL)` - Partially closes all eligible positions for the specified symbol (or current if NULL) based on ATR conditions.
 - `void MoveToBreakeven(string symbol = NULL)` - Moves stop-loss to breakeven for eligible positions on the specified symbol (or current if NULL) when profit target is reached.
 - `int CountTotalPositions()` - Counts total open positions across all symbols managed by the EA.
 
@@ -191,7 +193,9 @@ if(CustomIndicatorHandle == INVALID_HANDLE)
 - `bool InitializeHandles()` - Sets up indicator handles (including ATR) for all configured symbols.
 - `bool GetIndicatorsData(string symbol)` - Retrieves indicator data (including ATR) for the specified symbol with retry logic.
 - `void CheckEntrySignal(string symbol)` - Framework for implementing entry signal logic for the specified symbol.
-- `void CheckExitSignal(string symbol)` - Framework for implementing exit signal logic for the specified symbol.
+- `void CheckExitSignal(string symbol)` - Framework for implementing exit signal
+  logic for the specified symbol.
+- `void CheckPartialClose(string symbol = NULL)` - Partially closes all eligible positions for the specified symbol (or current if NULL) based on ATR conditions.
 
 ### Risk Management
 
